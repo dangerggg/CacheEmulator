@@ -97,4 +97,75 @@ class MRUAssoc(SetAssoc):
 
 
 class MCAssoc(SetAssoc):
-    pass
+    def __init__(self, assoc_sets=2, cache_width=18, block_width=4, addr_width=64, replace_algo='LRU', write_policy='allocate', logger='log_mru.txt'):
+        super(MCAssoc, self).__init__(assoc_sets, cache_width, block_width, addr_width, replace_algo, write_policy, logger)
+        self.bitvec = [[[0] * 2**self.assoc_sets] * 2**self.assoc_sets] * 2**self.offset_width
+    
+    def swap_lines(self, offset, src, dst):
+        # Maintain bit vector
+        self.cache_lines[offset][src], self.cache_lines[offset][dst] = self.cache_lines[offset][dst], self.cache_lines[offset][src]
+        self.bitvec[offset][dst][src] = 1
+        # Maintain LRU list
+        src_index = self.lru_list[offset].index(src)
+        dst_index = self.lru_list[offset].index(dst)
+        self.lru_list[offset][dst_index] = src
+        self.lru_list[offset].pop(src_index)
+        self.lru_list[offset].append(dst)
+
+    def memory_access(self, addr):
+        tag, offset = self.address_decoder(addr, self.tag_width)
+        loc = int(tag[-self.assoc_sets:], base=2)
+        self.logger.cnt += 1
+        if self.cache_lines[offset][loc] == tag:
+            self.logger.first_hit_cnt += 1
+            self.maintain_lru_list(offset, loc)
+            return
+        for line in range(0, 2**self.assoc_sets):
+            if self.bitvec[offset][loc][line] == 1:
+                if self.cache_lines[offset][line] == tag:
+                    self.swap_lines(offset, line, loc)
+                    return
+        self.logger.report_miss('read', addr)
+        victim = self.lru_list[offset].pop(0)
+        self.lru_list[offset].append(victim)
+        self.cache_lines[offset][victim] = tag
+        self.swap_lines(offset, victim, loc)
+
+
+class MCPAssoc(SetAssoc):
+    def __init__(self, assoc_sets=2, cache_width=18, block_width=4, addr_width=64, replace_algo='LRU', write_policy='allocate', logger='log_mru.txt'):
+        super(MCPAssoc, self).__init__(assoc_sets, cache_width, block_width, addr_width, replace_algo, write_policy, logger)
+        self.bitvec = [[-1] * 2**self.assoc_sets] * 2**self.offset_width
+    
+    def swap_lines(self, offset, src, dst):
+        # Maintain bit vector
+        self.cache_lines[offset][src], self.cache_lines[offset][dst] = self.cache_lines[offset][dst], self.cache_lines[offset][src]
+        self.bitvec[offset][dst] = src
+        # Maintain LRU list
+        src_index = self.lru_list[offset].index(src)
+        dst_index = self.lru_list[offset].index(dst)
+        self.lru_list[offset][dst_index] = src
+        self.lru_list[offset].pop(src_index)
+        self.lru_list[offset].append(dst)
+
+    def memory_access(self, addr):
+        tag, offset = self.address_decoder(addr, self.tag_width)
+        loc = int(tag[-self.assoc_sets:], base=2)
+        self.logger.cnt += 1
+        if self.cache_lines[offset][loc] == tag:
+            self.logger.first_hit_cnt += 1
+            self.maintain_lru_list(offset, loc)
+            return
+        candidate = self.bitvec[offset][loc]
+        if candidate != -1:
+            if self.cache_lines[offset][candidate] == tag:
+                self.swap_lines(offset, candidate, loc)
+                return
+        self.logger.report_miss('read', addr)
+        victim = self.lru_list[offset].pop(0)
+        self.lru_list[offset].append(victim)
+        self.cache_lines[offset][victim] = tag
+        self.swap_lines(offset, victim, loc)
+
+
+
