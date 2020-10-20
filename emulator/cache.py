@@ -1,4 +1,7 @@
+from os import access
+from emulator.linkedlist import LinkedList
 from . import log
+from . import linkedlist
 
 class Cache(object):
     """ (1) Initialize the cache emulator parameters
@@ -36,7 +39,7 @@ class DirectMap(Cache):
         super(DirectMap, self).__init__(cache_width, block_width, addr_width, replace_algo, write_policy)
         self.tag_width = self.addr_width - self.cache_width + self.assoc_sets
         self.offset_width = self.addr_width - self.tag_width - self.block_width
-        self.cache_lines = ['x'] * 2**self.offset_width
+        self.cache_lines = ['x' for i in range(0, 2**self.offset_width)]
         self.logger = log.Logger(logger)
     
     def memory_access(self, addr):
@@ -55,13 +58,16 @@ class SetAssoc(Cache):
         self.assoc_sets = assoc_sets
         self.tag_width = self.addr_width - self.cache_width + self.assoc_sets
         self.offset_width = self.addr_width - self.tag_width - self.block_width
-        self.cache_lines = [['x'] * 2**self.assoc_sets] * 2**self.offset_width
-        self.lru_list = [list(range(0, 2**self.assoc_sets))] * 2**self.offset_width
+        self.cache_lines = [['none' for i in range(0, 2**self.assoc_sets)] for j in range(0, 2**self.offset_width)]
+        # self.lru_list = [LinkedList(2**self.assoc_sets) for i in range(0, 2**self.offset_width)]
+        self.lru_list = [list(range(0, 2**self.assoc_sets)) for i in range(0, 2**self.offset_width)]
         self.logger = log.Logger(logger) 
 
     def maintain_lru_list(self, offset, access_line):
-        lru_index = self.lru_list[offset].index(access_line)
-        self.lru_list[offset].append(self.lru_list[offset].pop(lru_index))
+        # line = self.lru_list[offset].remove_node(access_line)
+        # self.lru_list[offset].append_node(line)
+        self.lru_list[offset].remove(access_line)
+        self.lru_list[offset].append(access_line)
 
     def memory_access(self, addr):
         tag, offset = self.address_decoder(addr, self.tag_width)
@@ -71,6 +77,9 @@ class SetAssoc(Cache):
                 self.maintain_lru_list(offset, line)
                 return 
         self.logger.report_miss('read', addr)
+        # victim = self.lru_list[offset].remove_first()
+        # self.lru_list[offset].append_node(victim)
+        # self.cache_lines[offset][victim.data] = tag
         victim = self.lru_list[offset].pop(0)
         self.lru_list[offset].append(victim)
         self.cache_lines[offset][victim] = tag
@@ -97,19 +106,18 @@ class MRUAssoc(SetAssoc):
 
 
 class MCAssoc(SetAssoc):
-    def __init__(self, assoc_sets=2, cache_width=18, block_width=4, addr_width=64, replace_algo='LRU', write_policy='allocate', logger='log_mru.txt'):
+    def __init__(self, assoc_sets=2, cache_width=18, block_width=4, addr_width=64, replace_algo='LRU', write_policy='allocate', logger='log_mc.txt'):
         super(MCAssoc, self).__init__(assoc_sets, cache_width, block_width, addr_width, replace_algo, write_policy, logger)
-        self.bitvec = [[[0] * 2**self.assoc_sets] * 2**self.assoc_sets] * 2**self.offset_width
+        self.bitvec = [[[0 for i in range(0, 2**self.assoc_sets)] for j in range(0, 2**self.assoc_sets)] for k in range(0, 2**self.offset_width)]
     
     def swap_lines(self, offset, src, dst):
         # Maintain bit vector
         self.cache_lines[offset][src], self.cache_lines[offset][dst] = self.cache_lines[offset][dst], self.cache_lines[offset][src]
         self.bitvec[offset][dst][src] = 1
         # Maintain LRU list
-        src_index = self.lru_list[offset].index(src)
         dst_index = self.lru_list[offset].index(dst)
         self.lru_list[offset][dst_index] = src
-        self.lru_list[offset].pop(src_index)
+        self.lru_list[offset].remove(src)
         self.lru_list[offset].append(dst)
 
     def memory_access(self, addr):
@@ -120,11 +128,20 @@ class MCAssoc(SetAssoc):
             self.logger.first_hit_cnt += 1
             self.maintain_lru_list(offset, loc)
             return
-        for line in range(0, 2**self.assoc_sets):
-            if self.bitvec[offset][loc][line] == 1:
-                if self.cache_lines[offset][line] == tag:
-                    self.swap_lines(offset, line, loc)
-                    return
+        if self.cache_lines[offset][loc][-self.assoc_sets:] != tag[-self.assoc_sets:]:
+            self.logger.search_cnt += 1
+            for line in range(0, 2**self.assoc_sets):
+                if self.bitvec[offset][loc][line] == 1:
+                    self.logger.search_length += 1
+                    if self.cache_lines[offset][line] == tag:
+                        self.swap_lines(offset, line, loc)
+                        return
+        else:
+            for line in range(0, 2**self.assoc_sets):
+                if self.bitvec[offset][loc][line] == 1:
+                    if self.cache_lines[offset][line] == tag:
+                        self.swap_lines(offset, line, loc)
+                        return
         self.logger.report_miss('read', addr)
         victim = self.lru_list[offset].pop(0)
         self.lru_list[offset].append(victim)
@@ -133,19 +150,18 @@ class MCAssoc(SetAssoc):
 
 
 class MCPAssoc(SetAssoc):
-    def __init__(self, assoc_sets=2, cache_width=18, block_width=4, addr_width=64, replace_algo='LRU', write_policy='allocate', logger='log_mru.txt'):
+    def __init__(self, assoc_sets=2, cache_width=18, block_width=4, addr_width=64, replace_algo='LRU', write_policy='allocate', logger='log_mcp.txt'):
         super(MCPAssoc, self).__init__(assoc_sets, cache_width, block_width, addr_width, replace_algo, write_policy, logger)
-        self.bitvec = [[-1] * 2**self.assoc_sets] * 2**self.offset_width
+        self.bitvec = [[-1 for i in range(0, 2**self.assoc_sets)] for j in range(0, 2**self.offset_width)]
     
     def swap_lines(self, offset, src, dst):
         # Maintain bit vector
         self.cache_lines[offset][src], self.cache_lines[offset][dst] = self.cache_lines[offset][dst], self.cache_lines[offset][src]
         self.bitvec[offset][dst] = src
         # Maintain LRU list
-        src_index = self.lru_list[offset].index(src)
         dst_index = self.lru_list[offset].index(dst)
         self.lru_list[offset][dst_index] = src
-        self.lru_list[offset].pop(src_index)
+        self.lru_list[offset].remove(src)
         self.lru_list[offset].append(dst)
 
     def memory_access(self, addr):
