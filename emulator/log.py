@@ -12,7 +12,7 @@ class Logger(object):
 
     def report_miss(self, op, addr):
         self.miss_cnt += 1
-        # self.log_text += "[%d] %s@ %s\n" % (self.cnt, op, addr)
+        self.log_text += "[%d] %s@ %s\n" % (self.cnt, op, addr)
     
     def get_hit_rate(self):
         return 1.0 - self.miss_cnt / self.cnt

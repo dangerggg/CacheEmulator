@@ -8,23 +8,27 @@ table = PrettyTable(['测试用例', '组织方式', '总命中率', '一次命�
 def run(trace_file):
     f = open(trace_file)
     # DM
-    dm_cache = cache.DirectMap(logger='log/log_dm.txt')
+    dm_cache = cache.DirectMap(logger='log/'+trace_file[9:-6]+'/log_dm.txt')
     # SA
     assoc_cache = []
     for i in range(1, 5):
-        assoc_cache.append(cache.SetAssoc(i, logger='log/log_sa'+str(2**i)+'.txt'))
+        assoc_cache.append(cache.SetAssoc(i, logger='log/'+trace_file[9:-6]+'/log_sa'+str(2**i)+'.txt'))
     # MRU 
     mru_cache = []
     for i in range(1, 5):
-        mru_cache.append(cache.MRUAssoc(i, logger='log/log_mru'+str(2**i)+'.txt'))
+        mru_cache.append(cache.MRUAssoc(i, logger='log/'+trace_file[9:-6]+'/log_mru'+str(2**i)+'.txt'))
     # MC 
     mc_cache = []
     for i in range(1, 5):
-        mc_cache.append(cache.MCAssoc(i, logger='log/log_mc'+str(2**i)+'.txt'))
+        mc_cache.append(cache.MCAssoc(i, logger='log/'+trace_file[9:-6]+'/log_mc'+str(2**i)+'.txt'))
     # MCP 
     mcp_cache = []
     for i in range(1, 5):
-        mcp_cache.append(cache.MCPAssoc(i, logger='log/log_mcp'+str(2**i)+'.txt'))
+        mcp_cache.append(cache.MCPAssoc(i, logger='log/'+trace_file[9:-6]+'/log_mcp'+str(2**i)+'.txt'))
+    # Storage
+    store_cache = []
+    for i in range(3, 10):
+        store_cache.append(cache.SetAssoc(assoc_sets=2, block_width=i, logger='log/'+trace_file[9:-6]+'/log_store'+str(2**i)+'B.txt'))
     
     for line in f.readlines():
         line_sp = re.split('[ ]+', line.strip())
@@ -37,6 +41,8 @@ def run(trace_file):
             mc.memory_access(line_sp[1])
         for mcp in mcp_cache:
             mcp.memory_access(line_sp[1])
+        for store in store_cache:
+            store.memory_access(line_sp[1])
 
     table.add_row([trace_file, 'DM', dm_cache.logger.get_hit_rate(), ' ', ' '])
     for i in range(1, 5):
@@ -48,6 +54,8 @@ def run(trace_file):
         print('multi-column('+str(2**i)+') search length: ', mc_cache[i-1].logger.get_avg_search_length())
     for i in range(1, 5):
         table.add_row([' ', 'MCP-'+str(2**i), mcp_cache[i-1].logger.get_hit_rate(), mcp_cache[i-1].logger.get_first_hit_rate(), mcp_cache[i-1].logger.get_none_first_hit_rate()])
+    for i in range(3, 10):
+        table.add_row([' ', 'STORE-'+str(2**i)+'B', store_cache[i-3].logger.get_hit_rate(), ' ', ' '])
 
     f.close()
 
