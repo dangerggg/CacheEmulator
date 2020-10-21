@@ -27,9 +27,9 @@ class Logger(object):
         return self.search_length / self.search_cnt
 
     def end_emulate(self):
-        if self.first_hit_cnt > 0:
-            print("First hit rate: ", self.first_hit_cnt / self.cnt)
-            print("Non-first hit rate: ", (self.cnt - self.first_hit_cnt - self.miss_cnt) / self.cnt)
-        print("Hit rate: ", 1.0- self.miss_cnt / self.cnt)
+        # if self.first_hit_cnt > 0:
+        #     print("First hit rate: ", self.first_hit_cnt / self.cnt)
+        #     print("Non-first hit rate: ", (self.cnt - self.first_hit_cnt - self.miss_cnt) / self.cnt)
+        # print("Hit rate: ", 1.0- self.miss_cnt / self.cnt)
         self.file_handler.write(self.log_text)
         self.file_handler.close()

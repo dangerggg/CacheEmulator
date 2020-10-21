@@ -45,17 +45,24 @@ def run(trace_file):
             store.memory_access(line_sp[1])
 
     table.add_row([trace_file, 'DM', dm_cache.logger.get_hit_rate(), ' ', ' '])
+    dm_cache.logger.end_emulate()
     for i in range(1, 5):
         table.add_row([' ', 'SA-'+str(2**i), assoc_cache[i-1].logger.get_hit_rate(), ' ', ' '])
+        assoc_cache[i-1].logger.end_emulate()
     for i in range(1, 5):
         table.add_row([' ', 'MRU-'+str(2**i), mru_cache[i-1].logger.get_hit_rate(), mru_cache[i-1].logger.get_first_hit_rate(), mru_cache[i-1].logger.get_none_first_hit_rate()])
+        mru_cache[i-1].logger.end_emulate()
+    print(trace_file[9:-6]+':')
     for i in range(1, 5):
         table.add_row([' ', 'MC-'+str(2**i), mc_cache[i-1].logger.get_hit_rate(), mc_cache[i-1].logger.get_first_hit_rate(), mc_cache[i-1].logger.get_none_first_hit_rate()])
+        mc_cache[i-1].logger.end_emulate()
         print('multi-column('+str(2**i)+') search length: ', mc_cache[i-1].logger.get_avg_search_length())
     for i in range(1, 5):
         table.add_row([' ', 'MCP-'+str(2**i), mcp_cache[i-1].logger.get_hit_rate(), mcp_cache[i-1].logger.get_first_hit_rate(), mcp_cache[i-1].logger.get_none_first_hit_rate()])
+        mcp_cache[i-1].logger.end_emulate()
     for i in range(3, 10):
         table.add_row([' ', 'STORE-'+str(2**i)+'B', store_cache[i-3].logger.get_hit_rate(), ' ', ' '])
+        store_cache[i-3].logger.end_emulate()
 
     f.close()
 
